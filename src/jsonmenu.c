@@ -471,8 +471,8 @@ bool set_entries ( char* entries_file, const Mode* sw ) {
 Mode mode =
 {
     .abi_version        = ABI_VERSION,
-    .name               = "prompt",
-    .cfg_name_key       = "display-prompt",
+    .name               = "json-menu",
+    .cfg_name_key       = "display-json-menu",
     ._init              = prompt_init,
     ._get_num_entries   = prompt_get_num_entries,
     ._result            = prompt_result,
