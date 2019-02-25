@@ -1,77 +1,3 @@
-/**
- * rofi-file_browser
- *
- * MIT/X11 License
- * Copyright (c) 2017 Qball Cow <qball@gmpclient.org>
- * Copyright (c) 2018 Marvin Kreis <MarvinKreis@web.de>
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
-
-// ================================================================================================================= //
-
-/*
- * A plugin to read program entries from a json file and execute them with or without arguments.
- *
- * - Typing part of an entry's name will match all entries' names that start with the input.
- *      -> Selecting the entry will execute it's command.
- * - Typing an entry's name with arguments will match the entry.
- *      -> Selecting the entry will execute it's command with the given arguments.
- * - Custom input will execute the input as a command.
- *
- * This plugin can be used to quickly open entries from a, list of frequently used programs or scripts with
- * abbreviated names, and open them with arguments.
- *
- * The custom matching should make it easier to quickly open entries with a known name, as well as give arguments.
- *      e.g. with default matching:
- *          - typing "int" might match "PrINTing" before "INTelliJ" if it comes first.
- *          - typing "thunar /tmp" won't match "Thunar" nor open it with "/tmp" as an argument
- *
- * The entries are read from a json file (default: XDG_CONFIG_HOME/menu_entries) with the following format:
- *      {
- *          "o": {
- *              "description":  "file browser",
- *              "cmd":          "thunar",
- *              "terminal":     false,
- *              "icon":         "thunar"
- *          },
- *          "thunderbird": {
- *              "terminal":     false,
- *          },
- *      }
- *
- * All properties are optional with default values:
- *     description: A description to display next to the name.          (default: none)
- *     cmd:         The command to execute, when the entry is picked.   (default: name of the entry)
- *     terminal:    Whether to open the command in a terminal or not.   (default: false)
- *     icon:        The name of the icon to display with the entry.     (default: name of the entry)
- *
- * Command line options:
- * ---------------------
- * -prompt_file <arg>      Sets the json file containing the entries.
- * -prompt_disable_icons   Disables icons.
- * -prompt_theme <arg>     Sets the icon theme, can be used multiple times to set fallback themes.
- */
-
-// ================================================================================================================= //
-
 #define _GNU_SOURCE
 
 #include <stdlib.h>
@@ -91,7 +17,7 @@
 // ================================================================================================================= //
 
 /* The json file containing the menu entries. */
-#define ENTRIES_FILE g_build_filename ( g_get_user_config_dir(), "menu_entries", NULL )
+#define ENTRIES_FILE g_build_filename ( g_get_user_config_dir(), "rofi-json-menu", NULL )
 
 /* The default icon themes. */
 #define ICON_THEMES "Numix-Circle", "Numix"
@@ -133,7 +59,7 @@ typedef struct {
 
     /* The currently typed input. */
     char* input;
-} PromptModePrivateData;
+} JsonMenuModePrivateData;
 
 // ================================================================================================================= //
 
@@ -159,30 +85,30 @@ bool set_entries ( char* entries_file, const Mode* sw );
 
 // ================================================================================================================= //
 
-static int prompt_init ( Mode* sw )
+static int json_menu_init ( Mode* sw )
 {
     if ( mode_get_private_data ( sw ) == NULL ) {
-        PromptModePrivateData* pd = g_malloc0 ( sizeof ( *pd ) );
+        JsonMenuModePrivateData* pd = g_malloc0 ( sizeof ( *pd ) );
         mode_set_private_data ( sw, ( void * ) pd );
 
         /* Set the entries_file. */
         char* entries_file = NULL;
-        if ( find_arg_str ( "-prompt_file", &entries_file ) ) {
+        if ( find_arg_str ( "-json-menu-file", &entries_file ) ) {
             if ( g_file_test ( entries_file, G_FILE_TEST_IS_REGULAR ) ) {
                 entries_file = g_strdup ( entries_file );
             } else {
-                fprintf ( stderr, "[prompt] Could not find entries file: %s\n", entries_file );
+                fprintf ( stderr, "[json-menu] Could not find menu file: %s\n", entries_file );
                 return false;
             }
         } else {
             entries_file = ENTRIES_FILE;
             if ( !g_file_test ( entries_file, G_FILE_TEST_IS_REGULAR ) ) {
-                fprintf ( stderr, "[prompt] Could not find entries file: %s\n", entries_file );
+                fprintf ( stderr, "[json-menu] Could not find menu file: %s\n", entries_file );
                 return false;
             }
         }
 
-        pd->enable_icons = ( find_arg ( "-prompt_disable_icons" ) == -1 );
+        pd->enable_icons = ( find_arg ( "-json-menu-disable-icons" ) == -1 );
 
         if ( pd->enable_icons ) {
             static const gchar * const fallback_icon_themes[] = {
@@ -195,7 +121,7 @@ static int prompt_init ( Mode* sw )
                 NULL
             };
 
-            pd->icon_themes = g_strdupv ( ( char ** ) find_arg_strv ( "-fb_theme" ) );
+            pd->icon_themes = g_strdupv ( ( char ** ) find_arg_strv ( "-json-menu-theme" ) );
             if ( pd->icon_themes == NULL ) {
                 pd->icon_themes = g_strdupv ( ( char ** ) default_icon_themes );
             }
@@ -214,9 +140,9 @@ static int prompt_init ( Mode* sw )
     return true;
 }
 
-static void prompt_destroy ( Mode* sw )
+static void json_menu_destroy ( Mode* sw )
 {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
     mode_set_private_data ( sw, NULL );
 
     if ( pd != NULL ) {
@@ -249,9 +175,9 @@ static void prompt_destroy ( Mode* sw )
     }
 }
 
-static unsigned int prompt_get_num_entries ( const Mode* sw )
+static unsigned int json_menu_get_num_entries ( const Mode* sw )
 {
-    const PromptModePrivateData* pd = ( const PromptModePrivateData * ) mode_get_private_data ( sw );
+    const JsonMenuModePrivateData* pd = ( const JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     if ( pd != NULL ) {
         return pd->num_entries;
@@ -260,9 +186,9 @@ static unsigned int prompt_get_num_entries ( const Mode* sw )
     }
 }
 
-static ModeMode prompt_result ( Mode* sw, int mretv, char **input, unsigned int selected_line )
+static ModeMode json_menu_result ( Mode* sw, int mretv, char **input, unsigned int selected_line )
 {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     ModeMode retv = RELOAD_DIALOG;
 
@@ -302,9 +228,9 @@ static ModeMode prompt_result ( Mode* sw, int mretv, char **input, unsigned int 
     return retv;
 }
 
-static int prompt_token_match ( const Mode* sw, rofi_int_matcher **tokens, unsigned int index )
+static int json_menu_token_match ( const Mode* sw, rofi_int_matcher **tokens, unsigned int index )
 {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     char* name = pd->entries[index].name;
     char* input = pd->input;
@@ -322,9 +248,9 @@ static int prompt_token_match ( const Mode* sw, rofi_int_matcher **tokens, unsig
     return false;
 }
 
-static char* prompt_get_display_value ( const Mode* sw, unsigned int selected_line, G_GNUC_UNUSED int *state, G_GNUC_UNUSED GList **attr_list, int get_entry )
+static char* json_menu_get_display_value ( const Mode* sw, unsigned int selected_line, G_GNUC_UNUSED int *state, G_GNUC_UNUSED GList **attr_list, int get_entry )
 {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     if ( !get_entry ) return NULL;
 
@@ -338,14 +264,14 @@ static char* prompt_get_display_value ( const Mode* sw, unsigned int selected_li
     }
 }
 
-char* prompt_get_completion ( const Mode *sw, unsigned int selected_line ) {
-    const PromptModePrivateData* pd = ( const PromptModePrivateData * ) mode_get_private_data ( sw );
+char* json_menu_get_completion ( const Mode *sw, unsigned int selected_line ) {
+    const JsonMenuModePrivateData* pd = ( const JsonMenuModePrivateData * ) mode_get_private_data ( sw );
     return pd->entries[selected_line].name;
 }
 
-static cairo_surface_t* prompt_get_icon ( const Mode* sw, unsigned int selected_line, int height )
+static cairo_surface_t* json_menu_get_icon ( const Mode* sw, unsigned int selected_line, int height )
 {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     if ( pd->enable_icons && pd->entries[selected_line].icon_name != NULL ) {
         return get_icon_surf ( pd->entries[selected_line].icon_name, height, sw );
@@ -354,9 +280,9 @@ static cairo_surface_t* prompt_get_icon ( const Mode* sw, unsigned int selected_
     }
 }
 
-static char* prompt_preprocess_input ( Mode* sw, const char* input )
+static char* json_menu_preprocess_input ( Mode* sw, const char* input )
 {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     g_free ( pd->input );
     pd->input = g_strdup ( input );
@@ -367,7 +293,7 @@ static char* prompt_preprocess_input ( Mode* sw, const char* input )
 // ================================================================================================================= //
 
 static cairo_surface_t* get_icon_surf ( char* icon_name, int icon_size, const Mode* sw ) {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     cairo_surface_t *icon_surf = g_hash_table_lookup ( pd->icons, icon_name );
 
@@ -409,19 +335,19 @@ static cairo_surface_t* get_icon_surf ( char* icon_name, int icon_size, const Mo
 }
 
 bool set_entries ( char* entries_file, const Mode* sw ) {
-    PromptModePrivateData* pd = ( PromptModePrivateData * ) mode_get_private_data ( sw );
+    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     char* file_content = NULL;
 
     if ( !g_file_get_contents ( entries_file, &file_content, NULL, NULL ) ) {
-        fprintf ( stderr, "[prompt] Could not read entries file: %s\n", entries_file );
+        fprintf ( stderr, "[json-menu] Could not read entries file: %s\n", entries_file );
         return false;
     }
 
     enum json_tokener_error error;
     json_object *entries = json_tokener_parse_verbose ( file_content, &error );
     if ( error != json_tokener_success ) {
-        fprintf ( stderr, "[prompt] Could not parse entries file: %s\n", entries_file );
+        fprintf ( stderr, "[json-menu] Could not parse entries file: %s\n", entries_file );
         return false;
     }
 
@@ -473,16 +399,16 @@ Mode mode =
     .abi_version        = ABI_VERSION,
     .name               = "json-menu",
     .cfg_name_key       = "display-json-menu",
-    ._init              = prompt_init,
-    ._get_num_entries   = prompt_get_num_entries,
-    ._result            = prompt_result,
-    ._destroy           = prompt_destroy,
-    ._token_match       = prompt_token_match,
-    ._get_display_value = prompt_get_display_value,
-    ._get_icon          = prompt_get_icon,
+    ._init              = json_menu_init,
+    ._get_num_entries   = json_menu_get_num_entries,
+    ._result            = json_menu_result,
+    ._destroy           = json_menu_destroy,
+    ._token_match       = json_menu_token_match,
+    ._get_display_value = json_menu_get_display_value,
+    ._get_icon          = json_menu_get_icon,
     ._get_message       = NULL,
-    ._get_completion    = prompt_get_completion,
-    ._preprocess_input  = prompt_preprocess_input,
+    ._get_completion    = json_menu_get_completion,
+    ._preprocess_input  = json_menu_preprocess_input,
     .private_data       = NULL,
     .free               = NULL,
 };
