@@ -27,7 +27,7 @@ Menu entries are read from a JSON file (default: `XDG_CONFIG_HOME/rofi-json-menu
 All properties are optional with default values:
 
 Property      | Default Value | Description
-------------- | ------------- | ------------------------------------------------
+------------- | ------------- | -----------
 `description` | none          | description to display next to the name
 `cmd`         | entry name    | command to execute
 `terminal`    | false         | whether to open the command in a terminal or not
@@ -38,20 +38,18 @@ Property      | Default Value | Description
 This plugin uses custom matching to make command line arguments possible:
 
 Input                         | Executes ...                   | Example
------------------------------ | ------------------------------ | ---------------------
+----------------------------- | ------------------------------ | -------
 prefix of an entry            | entry's command                | `fo`
 complete entry with arguments | entry's command with arguments | `foo arg`
 custom input                  | custom input                   | `loffice`
 
-
-
 ### Command line options / Configuration
 
-Option                     | Argument        | Description
--------------------------- | --------------- | ----------------------------------------------------------------------
-`-json-menu-file`          | `/path/to/file` | sets the menu file
-`-json-menu-disable-icons` |                 | disables icons
-`-json-menu-icon-theme`    | theme name      | sets the icon theme
+Option                               | Description
+------------------------------------ | -----------
+`-json-menu-file <path>`             | Set the menu file (default: `XDG_CONFIG_HOME/rofi-json-menu`).
+`-json-menu-disable-icons`           | Disable icons (default: enabled).
+`-json-menu-icon-theme <theme name>` | Set the icon theme (default: `Adwaita`).
 
 Theme options can be used multiple times to set fallback themes.
 The source file contains more configuration via `#define`.
