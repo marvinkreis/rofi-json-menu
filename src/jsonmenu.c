@@ -20,7 +20,7 @@
 #define ENTRIES_FILE g_build_filename ( g_get_user_config_dir(), "rofi-json-menu", NULL )
 
 /* The default icon themes. */
-#define ICON_THEMES "Numix-Circle", "Numix"
+#define ICON_THEMES "Adwaita"
 
 /* The fallback icon themes. */
 #define FALLBACK_ICON_THEMES "Adwaita", "gnome"
