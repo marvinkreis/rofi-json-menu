@@ -121,7 +121,7 @@ static int json_menu_init ( Mode* sw )
                 NULL
             };
 
-            pd->icon_themes = g_strdupv ( ( char ** ) find_arg_strv ( "-json-menu-theme" ) );
+            pd->icon_themes = g_strdupv ( ( char ** ) find_arg_strv ( "-json-menu-icon-theme" ) );
             if ( pd->icon_themes == NULL ) {
                 pd->icon_themes = g_strdupv ( ( char ** ) default_icon_themes );
             }
