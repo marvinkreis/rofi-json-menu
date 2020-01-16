@@ -56,9 +56,6 @@ typedef struct {
     NkXdgThemeContext *xdg_context;
     /* Used icon themes with fallbacks */
     char** icon_themes;
-
-    /* The currently typed input. */
-    char* input;
 } JsonMenuModePrivateData;
 
 // ================================================================================================================= //
@@ -166,8 +163,6 @@ static void json_menu_destroy ( Mode* sw )
             g_strfreev ( pd->icon_themes );
         }
 
-        g_free ( pd->input );
-
         /* Fill with zeros, just in case. */
         memset ( ( void* ) pd , 0, sizeof ( pd ) );
 
@@ -232,15 +227,20 @@ static int json_menu_token_match ( const Mode* sw, rofi_int_matcher **tokens, un
 {
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
+    if (tokens[0] == NULL) {
+        return true;
+    }
+
+    const char* first_token = g_regex_get_pattern(tokens[0]->regex);
     char* name = pd->entries[index].name;
-    char* input = pd->input;
 
     /* Match if the name contains the input, or the input contains the name with a whitespace afterwards (for arguments). */
-    if ( g_str_has_prefix ( name, pd->input ) ) {
-        return true;
-    } else if ( g_str_has_prefix ( pd->input, name ) ) {
-        int name_len = strlen ( name );
-        if ( input[name_len] == ' ' ) {
+    if (tokens[1] == NULL) {
+        if ( g_str_has_prefix ( name, first_token ) ) {
+            return true;
+        }
+    } else {
+        if ( g_str_equal ( name, first_token ) ) {
             return true;
         }
     }
@@ -264,7 +264,8 @@ static char* json_menu_get_display_value ( const Mode* sw, unsigned int selected
     }
 }
 
-char* json_menu_get_completion ( const Mode *sw, unsigned int selected_line ) {
+char* json_menu_get_completion ( const Mode *sw, unsigned int selected_line )
+{
     const JsonMenuModePrivateData* pd = ( const JsonMenuModePrivateData * ) mode_get_private_data ( sw );
     return pd->entries[selected_line].name;
 }
@@ -278,16 +279,6 @@ static cairo_surface_t* json_menu_get_icon ( const Mode* sw, unsigned int select
     } else {
         return NULL;
     }
-}
-
-static char* json_menu_preprocess_input ( Mode* sw, const char* input )
-{
-    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
-
-    g_free ( pd->input );
-    pd->input = g_strdup ( input );
-
-    return g_strdup ( input );
 }
 
 // ================================================================================================================= //
@@ -408,7 +399,7 @@ Mode mode =
     ._get_icon          = json_menu_get_icon,
     ._get_message       = NULL,
     ._get_completion    = json_menu_get_completion,
-    ._preprocess_input  = json_menu_preprocess_input,
+    ._preprocess_input  = NULL,
     .private_data       = NULL,
     .free               = NULL,
 };
