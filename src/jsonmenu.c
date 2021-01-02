@@ -227,15 +227,15 @@ static int json_menu_token_match ( const Mode* sw, rofi_int_matcher **tokens, un
 {
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
-    if (tokens[0] == NULL) {
+    if ( tokens[0] == NULL ) {
         return true;
     }
 
-    const char* first_token = g_regex_get_pattern(tokens[0]->regex);
+    const char* first_token = g_regex_get_pattern( tokens[0]->regex );
     char* name = pd->entries[index].name;
 
     /* Match if the name contains the input, or the input contains the name with a whitespace afterwards (for arguments). */
-    if (tokens[1] == NULL) {
+    if ( tokens[1] == NULL ) {
         if ( g_str_has_prefix ( name, first_token ) ) {
             return true;
         }
@@ -283,7 +283,8 @@ static cairo_surface_t* json_menu_get_icon ( const Mode* sw, unsigned int select
 
 // ================================================================================================================= //
 
-static cairo_surface_t* get_icon_surf ( char* icon_name, int icon_size, const Mode* sw ) {
+static cairo_surface_t* get_icon_surf ( char* icon_name, int icon_size, const Mode* sw )
+{
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
 
     cairo_surface_t *icon_surf = g_hash_table_lookup ( pd->icons, icon_name );
