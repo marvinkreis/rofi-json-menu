@@ -9,21 +9,15 @@
 #include <rofi/mode.h>
 #include <rofi/helper.h>
 #include <rofi/mode-private.h>
+#include <rofi/rofi-icon-fetcher.h>
 
 #include <stdbool.h>
-#include <nkutils-xdg-theme.h>
 #include <json.h>
 
 // ================================================================================================================= //
 
 /* The json file containing the menu entries. */
 #define ENTRIES_FILE g_build_filename ( g_get_user_config_dir(), "rofi-json-menu", NULL )
-
-/* The default icon themes. */
-#define ICON_THEMES "Adwaita"
-
-/* The fallback icon themes. */
-#define FALLBACK_ICON_THEMES "Adwaita", "gnome"
 
 /* The format used to display entries without description. Parameters are: "name" */
 #define ENTRY_FORMAT "%s"
@@ -41,6 +35,9 @@ typedef struct {
     char* cmd;
     char* icon_name;
     bool open_in_terminal;
+
+    /* Rofi icon fetcher request ID. */
+    uint32_t icon_fetcher_request;
 } Entry;
 
 typedef struct {
@@ -51,25 +48,9 @@ typedef struct {
 
     bool enable_icons;
     /* Loaded icons by their names */
-    GHashTable* icons;
-    /* Icon theme context */
-    NkXdgThemeContext *xdg_context;
-    /* Used icon themes with fallbacks */
-    char** icon_themes;
 } JsonMenuModePrivateData;
 
 // ================================================================================================================= //
-
-/**
- * @param icon_names The icon name to test the icon of.
- * @param icon_size The size of the icon to get.
- * @param sw The current mode.
- *
- * Gets the icon for an icon name.
- *
- * @return An icon for the given icon name, or NULL if the icon doesn't exist.
- */
-static cairo_surface_t* get_icon_surf ( char* icon_name, int icon_size, const Mode* sw );
 
 /**
  * @param entries_file An absolute path to the entries file.
@@ -107,27 +88,6 @@ static int json_menu_init ( Mode* sw )
 
         pd->enable_icons = ( find_arg ( "-json-menu-disable-icons" ) == -1 );
 
-        if ( pd->enable_icons ) {
-            static const gchar * const fallback_icon_themes[] = {
-                FALLBACK_ICON_THEMES,
-                NULL
-            };
-
-            const gchar *default_icon_themes[] = {
-                ICON_THEMES,
-                NULL
-            };
-
-            pd->icon_themes = g_strdupv ( ( char ** ) find_arg_strv ( "-json-menu-icon-theme" ) );
-            if ( pd->icon_themes == NULL ) {
-                pd->icon_themes = g_strdupv ( ( char ** ) default_icon_themes );
-            }
-
-            pd->xdg_context = nk_xdg_theme_context_new ( fallback_icon_themes, NULL );
-            nk_xdg_theme_preload_themes_icon ( pd->xdg_context, ( const gchar * const * ) pd->icon_themes );
-            pd->icons = g_hash_table_new_full ( g_str_hash, g_str_equal, g_free, ( void ( * ) ( void * ) ) cairo_surface_destroy );
-        }
-
         bool success = set_entries ( entries_file, sw );
         g_free ( entries_file );
 
@@ -151,17 +111,6 @@ static void json_menu_destroy ( Mode* sw )
             g_free ( entry->icon_name );
         }
         g_free ( pd->entries );
-
-        /* Free icon themes and icons. */
-        if ( pd->enable_icons ) {
-            if ( pd->icons != NULL ) {
-                g_hash_table_destroy ( pd->icons );
-            }
-            if ( pd->xdg_context != NULL ) {
-                nk_xdg_theme_context_free ( pd->xdg_context );
-            }
-            g_strfreev ( pd->icon_themes );
-        }
 
         /* Fill with zeros, just in case. */
         memset ( ( void* ) pd , 0, sizeof ( pd ) );
@@ -273,58 +222,19 @@ char* json_menu_get_completion ( const Mode *sw, unsigned int selected_line )
 static cairo_surface_t* json_menu_get_icon ( const Mode* sw, unsigned int selected_line, int height )
 {
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
+    Entry *entry = &pd->entries[selected_line];
 
-    if ( pd->enable_icons && pd->entries[selected_line].icon_name != NULL ) {
-        return get_icon_surf ( pd->entries[selected_line].icon_name, height, sw );
+    if ( pd->enable_icons && entry->icon_name != NULL ) {
+        if ( entry->icon_fetcher_request <= 0 ) {
+            entry->icon_fetcher_request = rofi_icon_fetcher_query ( entry->icon_name, height );
+        }
+        return rofi_icon_fetcher_get ( entry->icon_fetcher_request );
     } else {
         return NULL;
     }
 }
 
 // ================================================================================================================= //
-
-static cairo_surface_t* get_icon_surf ( char* icon_name, int icon_size, const Mode* sw )
-{
-    JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
-
-    cairo_surface_t *icon_surf = g_hash_table_lookup ( pd->icons, icon_name );
-
-    if ( icon_surf != NULL ) {
-        return icon_surf;
-    }
-
-    gchar* icon_path = nk_xdg_theme_get_icon ( pd->xdg_context, ( const char ** ) pd->icon_themes,
-                                    NULL, icon_name, icon_size, 1, true );
-
-    if ( icon_path == NULL ) {
-        if ( g_file_test ( icon_name, G_FILE_TEST_IS_REGULAR ) ) {
-            g_free ( icon_path );
-            icon_path = g_strdup ( icon_name );
-        } else {
-            return NULL;
-        }
-    }
-
-    if ( g_str_has_suffix ( icon_path, ".png" ) ) {
-        icon_surf = cairo_image_surface_create_from_png ( icon_path );
-    } else if ( g_str_has_suffix ( icon_path, ".svg" ) ) {
-        icon_surf = cairo_image_surface_create_from_svg ( icon_path, icon_size );
-    }
-
-    g_free ( icon_path );
-
-    if ( icon_surf != NULL ) {
-        if ( cairo_surface_status ( icon_surf ) != CAIRO_STATUS_SUCCESS ) {
-            cairo_surface_destroy ( icon_surf );
-            icon_surf = NULL;
-        } else {
-            g_hash_table_insert ( pd->icons, g_strdup ( icon_name ), icon_surf );
-            return icon_surf;
-        }
-    }
-
-    return NULL;
-}
 
 bool set_entries ( char* entries_file, const Mode* sw ) {
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
