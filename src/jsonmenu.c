@@ -138,7 +138,7 @@ static ModeMode json_menu_result ( Mode* sw, int mretv, char **input, unsigned i
 
     /* Handle Return and Shift+Return*/
     if ( mretv & MENU_OK ) {
-        Entry* entry = &( pd->entries[selected_line] );
+        Entry* entry = &pd->entries[selected_line];
 
         /* Execute with arguments, if the user typed arguments after the name. */
         char* cmd = NULL;
@@ -175,21 +175,21 @@ static ModeMode json_menu_result ( Mode* sw, int mretv, char **input, unsigned i
 static int json_menu_token_match ( const Mode* sw, rofi_int_matcher **tokens, unsigned int index )
 {
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
+    Entry *entry = &pd->entries[index];
 
     if ( tokens[0] == NULL ) {
         return true;
     }
 
-    const char* first_token = g_regex_get_pattern( tokens[0]->regex );
-    char* name = pd->entries[index].name;
+    const char* first_token = g_regex_get_pattern ( tokens[0]->regex );
 
     /* Match if the name contains the input, or the input contains the name with a whitespace afterwards (for arguments). */
     if ( tokens[1] == NULL ) {
-        if ( g_str_has_prefix ( name, first_token ) ) {
+        if ( g_str_has_prefix ( entry->name, first_token ) ) {
             return true;
         }
     } else {
-        if ( g_str_equal ( name, first_token ) ) {
+        if ( g_str_equal ( entry->name, first_token ) ) {
             return true;
         }
     }
@@ -200,23 +200,26 @@ static int json_menu_token_match ( const Mode* sw, rofi_int_matcher **tokens, un
 static char* json_menu_get_display_value ( const Mode* sw, unsigned int selected_line, G_GNUC_UNUSED int *state, G_GNUC_UNUSED GList **attr_list, int get_entry )
 {
     JsonMenuModePrivateData* pd = ( JsonMenuModePrivateData * ) mode_get_private_data ( sw );
+    Entry *entry = &pd->entries[selected_line];
 
     if ( !get_entry ) return NULL;
 
     // MARKUP flag, not defined in accessible headers
     *state |= 8;
 
-    if ( pd->entries[selected_line].description != NULL ) {
-        return g_strdup_printf ( ENTRY_FORMAT_DESC, pd->entries[selected_line].name, pd->entries[selected_line].description );
+    if ( entry->description != NULL ) {
+        return g_strdup_printf ( ENTRY_FORMAT_DESC, entry->name, entry->description );
     } else {
-        return g_strdup_printf ( ENTRY_FORMAT, pd->entries[selected_line].name );
+        return g_strdup_printf ( ENTRY_FORMAT, entry->name );
     }
 }
 
 char* json_menu_get_completion ( const Mode *sw, unsigned int selected_line )
 {
     const JsonMenuModePrivateData* pd = ( const JsonMenuModePrivateData * ) mode_get_private_data ( sw );
-    return pd->entries[selected_line].name;
+    Entry *entry = &pd->entries[selected_line];
+
+    return entry->name;
 }
 
 static cairo_surface_t* json_menu_get_icon ( const Mode* sw, unsigned int selected_line, int height )
@@ -255,7 +258,7 @@ bool set_entries ( char* entries_file, const Mode* sw ) {
 
     json_object_object_foreach ( entries, key, value ) {
         pd->entries = g_realloc ( pd->entries, ( pd->num_entries + 1 ) * sizeof ( Entry ) );
-        Entry* entry = &( pd->entries[pd->num_entries] );
+        Entry* entry = &pd->entries[pd->num_entries];
         pd->num_entries++;
 
         entry->name = g_strdup ( key );
