@@ -60,19 +60,15 @@ The source file contains more configuration via `#define`.
 
 Dependency | Version
 ---------- | -------
-rofi       | 1.4
+rofi       | 1.6
 json-c     | 0.13
 
 ### Installation
 
-Use the following steps to compile the plugin with the **autotools** build system:
+Use the following steps to compile the plugin with **CMake**:
 
 ```bash
-git submodule init
-git submodule update
-
-autoreconf -i
-./configure
+cmake .
 make
-make install
+make install # optional: install the plugin
 ```
